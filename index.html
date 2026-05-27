@@ -155,28 +155,63 @@ function normalizarData(str) {
 }
 
 function extrairRTF(rtf) {
-  const dataMatch = rtf.match(/(\d{1,2}\s+a\s+\d{1,2}\s+de\s+\w+)/i);
+  // Limpa linhas que atrapalham
+  const textoLimpo = rtf.replace(/\[Fim da matéria de referência\.\]/gi, '')
+                       .replace(/Você pode viver para sempre na Terra.*/gi, '')
+                       .replace(/A esposa deve respeitar.*/gi, '')
+                       .replace(/Todos terão saúde perfeita.*/gi, '');
+
+  const dataMatch = textoLimpo.match(/(\d{1,2}\s+a\s+\d{1,2}\s+de\s+\w+)/i);
   const dataSemana = dataMatch? dataMatch[1] : '';
 
-  const canticos = rtf.match(/Cântico\s+\d+/gi) || [];
-  const p1Match = rtf.match(/1\.\s*([^\n]+)/);
-  const leituraMatch = rtf.match(/3\.\s*Leitura da Bíblia[^\n]*\n([^\n]+)/);
-  const p4Match = rtf.match(/4\.\s*([^\n]+)/);
-  const p5Match = rtf.match(/5\.\s*([^\n]+)/);
-  const p6Match = rtf.match(/6\.\s*([^\n]+)/);
-  const p7Match = rtf.match(/7\.\s*“?([^”\n]+)”?/);
-  const p8Match = rtf.match(/8\.\s*([^\n]+)/);
+  const canticos = textoLimpo.match(/Cântico\s+\d+/gi) || [];
+
+  // Pega partes 1 a 3 - Tesouros
+  const p1Match = textoLimpo.match(/1\.\s*([^\n]+)/);
+  const leituraMatch = textoLimpo.match(/3\.\s*Leitura da Bíblia[^\n]*\n?\s*([^\n(]+)/);
+
+  // Pega partes 4 a 6 - Ministério - ignora linhas de texto bíblico
+  const linhasMin = textoLimpo.split('\n').map(l => l.trim()).filter(l => l);
+  let p4 = '', p5 = '', p6 = '';
+  let achou4 = false;
+  for(let linha of linhasMin) {
+    if(/4\.\s*Iniciando conversas/i.test(linha)) {
+      p4 = linha.replace(/4\.\s*/i, '').replace(/\(\d+\s*min\)/i, '').trim();
+      achou4 = true;
+      continue;
+    }
+    if(achou4 && /5\./i.test(linha) &&!/Salmo|Mateus|Isaías/i.test(linha)) {
+      p5 = linha.replace(/5\.\s*/i, '').replace(/\(\d+\s*min\)/i, '').trim();
+      continue;
+    }
+    if(achou4 && /6\./i.test(linha) &&!/Salmo|Mateus|Isaías/i.test(linha)) {
+      p6 = linha.replace(/6\.\s*/i, '').replace(/\(\d+\s*min\)/i, '').trim();
+      break;
+    }
+  }
+
+  // Pega partes 7 e 8 - Vida Cristã
+  let p7 = '', p8 = '';
+  const sec7Match = textoLimpo.match(/7\.\s*“?([^”\n(]+)”?/);
+  if(sec7Match) p7 = sec7Match[1].trim();
+
+  const sec8Match = textoLimpo.match(/8\.\s*Estudo bíblico de congregação/i);
+  if(sec8Match) p8 = 'Estudo bíblico de congregação';
+  else {
+    const p8Alt = textoLimpo.match(/8\.\s*([^\n(]+)/);
+    if(p8Alt &&!/Isaías|saúde perfeita/i.test(p8Alt[1])) p8 = p8Alt[1].trim();
+  }
 
   return {
     data: dataSemana,
     canticos,
     p1: p1Match? p1Match[1].trim() : '',
     p3: leituraMatch? leituraMatch[1].trim() : '',
-    p4: p4Match? p4Match[1].trim() : '',
-    p5: p5Match? p5Match[1].trim() : '',
-    p6: p6Match? p6Match[1].trim() : '',
-    p7: p7Match? p7Match[1].trim() : '',
-    p8: p8Match? p8Match[1].trim() : ''
+    p4: p4 || 'Iniciando conversas',
+    p5: p5 || 'Discurso',
+    p6: p6 || 'Discurso',
+    p7: p7 || '“Sempre mostrem hospitalidade”',
+    p8: p8 || 'Estudo bíblico de congregação'
   };
 }
 
@@ -224,7 +259,7 @@ async function gerarQuadro() {
     }
 
     if (!designacoes.presidente) {
-      setStatus('Atenção: Não encontrei designações para essa data na planilha. Verifique a coluna "data".', 'erro');
+      setStatus('Atenção: Não encontrei designações para essa data na planilha.', 'erro');
     }
 
     // Preenche quadro
@@ -258,7 +293,7 @@ async function gerarQuadro() {
 
   } catch (e) {
     console.error(e);
-    setStatus('Erro ao ler planilha. Verifique sua conexão com a internet.', 'erro');
+    setStatus('Erro ao ler planilha. Verifique sua conexão.', 'erro');
   } finally {
     btn.disabled = false;
   }
