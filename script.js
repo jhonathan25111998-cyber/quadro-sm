@@ -1,23 +1,18 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const presidenteElement = document.getElementById('presidente');
-    const oradorElement = document.getElementById('orador');
-    const leitorElement = document.getElementById('leitor');
-
     const data = {
         presidentes: ["Edivaldo André", "João Marcos"],
         oradores: ["João Lucas", "Bruno Gelinski"],
         leitores: ["Juarez Cruz", "Jhonathan Tomczyk"]
     };
 
-    // Example function to change names
-    function changeName(element, nameList) {
+    function changeName(elementId, nameList) {
+        const element = document.getElementById(elementId);
         let currentName = element.textContent;
         let index = nameList.indexOf(currentName);
         element.textContent = nameList[(index + 1) % nameList.length];
     }
 
-    // Event listeners for changing names
-    presidenteElement.addEventListener('click', () => changeName(presidenteElement, data.presidentes));
-    oradorElement.addEventListener('click', () => changeName(oradorElement, data.oradores));
-    leitorElement.addEventListener('click', () => changeName(leitorElement, data.leitores));
+    document.getElementById('presidente-11').addEventListener('click', () => changeName('presidente-11', data.presidentes));
+    document.getElementById('orador-11').addEventListener('click', () => changeName('orador-11', data.oradores));
+    document.getElementById('leitor-11').addEventListener('click', () => changeName('leitor-11', data.leitores));
 });
