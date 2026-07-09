@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', function() {
     const data = {
         presidentes: ["Edivaldo André", "João Marcos"],
         oradores: ["João Lucas", "Bruno Gelinski"],
@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
         element.textContent = nameList[(index + 1) % nameList.length];
     }
 
-    document.getElementById('presidente-11').addEventListener('click', () => changeName('presidente-11', data.presidentes));
-    document.getElementById('orador-11').addEventListener('click', () => changeName('orador-11', data.oradores));
-    document.getElementById('leitor-11').addEventListener('click', () => changeName('leitor-11', data.leitores));
+    document.getElementById('display-presidente-11').addEventListener('click', () => changeName('display-presidente-11', data.presidentes));
+    document.getElementById('display-orador-11').addEventListener('click', () => changeName('display-orador-11', data.oradores));
+    document.getElementById('display-leitor-11').addEventListener('click', () => changeName('display-leitor-11', data.leitores));
 });
