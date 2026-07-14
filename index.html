@@ -2,49 +2,90 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Quadro de Anúncios</title>
-    <link rel="stylesheet" href="styles.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Programação das Reuniões – Daisy</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Quadro de Anúncios</h1>
-        </header>
-        <main>
-            <!-- Programação das Reuniões -->
-            <section id="programacao-reunioes">
-                <h2>Programação das Reuniões</h2>
-                <div class="meeting">
-                    <h3>11 de Julho</h3>
-                    <p><strong>Presidente:</strong> <span id="display-presidente-11">Edivaldo André</span></p>
-                    <p><strong>Orador:</strong> <span id="display-orador-11">João Lucas</span></p>
-                    <p><strong>Leitor:</strong> <span id="display-leitor-11">Juarez Cruz</span></p>
-                    <p><strong>Tema:</strong> "Existe um líder em quem você pode confiar?"</p>
-                    <p><strong>Oração Final:</strong> Orador ou Matheus Faria</p>
+    <div class="container" id="app">
+        <div class="header-title" id="headerTitulo">
+            <h1>PROGRAMAÇÃO DAS REUNIÕES</h1>
+            <h2 id="semanaData">CARREGUE O ARQUIVO XML</h2>
+        </div>
+
+        <!-- Área de upload -->
+        <div class="upload-area" id="uploadArea">
+            <p>Selecione o arquivo <strong>.xml</strong> da semana (formato DAISY).</p>
+            <label for="fileInput">Escolher arquivo</label>
+            <input type="file" id="fileInput" accept=".xml">
+            <button class="btn-config" onclick="abrirConfig()">⚙️ Gerenciar Lista de Irmãos</button>
+        </div>
+
+        <!-- Modo edição -->
+        <div id="editMode" style="display:none;">
+            <div style="display:flex; justify-content:flex-end; margin-bottom:5px;">
+                <button class="btn-config" onclick="abrirConfig()">⚙️ Gerenciar Lista de Irmãos</button>
+            </div>
+            <div class="colunas-form">
+                <div style="flex:65">
+                    <div class="form-item"><label>Data:</label><input type="text" id="dataInput" readonly></div>
+                    <div class="form-item"><label>Horário:</label><input type="text" id="horario" value="19:30 hs"></div>
+                    <div class="form-item" data-categoria="PRESIDÊNCIA"><label>Presidente:</label><select id="presidente"></select></div>
+                    <div class="form-item" data-categoria="ORAÇÕES"><label>Oração Inicial:</label><select id="oracaoInicial"></select></div>
+                    <div id="tesourosForm"></div>
+                    <div id="ministerioForm"></div>
+                    <div id="vidaForm"></div>
+                    <div class="form-item" data-categoria="LEITOR"><label>Leitor:</label><select id="leitor"></select></div>
+                    <div class="form-item"><label>Cântico Final Nº:</label><input type="number" id="cantoFinalNum"></div>
+                    <div class="form-item" data-categoria="ORAÇÕES"><label>Oração Final:</label><select id="oracaoFinal"></select></div>
                 </div>
-                <!-- Adicione mais reuniões conforme necessário -->
-            </section>
-            
-            <!-- Limpeza -->
-            <section id="limpeza">
-                <h2>Programação de Limpeza</h2>
-                <ul>
-                    <li><strong>8 a 14 de Junho:</strong> Centro</li>
-                    <li><strong>15 a 21 de Junho:</strong> Pinheirinho</li>
-                    <!-- Adicione mais programações conforme necessário -->
-                </ul>
-            </section>
-            
-            <!-- Anúncios -->
-            <section id="anuncios">
-                <h2>Anúncios e Lembretes</h2>
-                <p>Escrever para os irmãos que estão presos.</p>
-                <p>Uso de dados pessoais conforme a política de privacidade.</p>
-                <p>Donativos para a obra mundial por PIX.</p>
-            </section>
-        </main>
+                <div style="flex:35">
+                    <h3>MECÂNICAS</h3>
+                    <div class="form-item" data-categoria="Indicador Entrada"><label>Ind. Entrada:</label><select id="indEntrada"></select></div>
+                    <div class="form-item" data-categoria="Indicador Auditório"><label>Ind. Auditório:</label><select id="indAuditorio"></select></div>
+                    <div class="form-item" data-categoria="Indicador Zoom"><label>Ind. Zoom:</label><select id="indZoom"></select></div>
+                    <div class="form-item" data-categoria="Mídia"><label>Mídias:</label><select id="midias"></select></div>
+                    <div class="form-item" data-categoria="Mídia"><label>Áudio:</label><select id="audio"></select></div>
+                    <div class="form-item" data-categoria="Microfone"><label>Mic 1:</label><select id="mic1"></select></div>
+                    <div class="form-item" data-categoria="Microfone"><label>Mic 2:</label><select id="mic2"></select></div>
+                    <div class="form-item" data-categoria="Palco"><label>Palco:</label><select id="palco"></select></div>
+                    <h3>CITAÇÃO</h3>
+                    <textarea id="citacao" style="width:100%; height:40px;"></textarea>
+                    <h3>IMAGEM RODAPÉ</h3>
+                    <input type="text" id="urlImagem" style="width:100%;" placeholder="https://...">
+                </div>
+            </div>
+            <button class="btn-generate" onclick="gerarVisualizacao()">✅ GERAR PROGRAMAÇÃO</button>
+        </div>
+
+        <!-- Modo final (impressão) -->
+        <div id="finalMode" style="display:none;">
+            <div id="layoutFinal"></div>
+            <button class="btn-generate" onclick="window.print()" style="background:#2c6e49;">🖨️ Imprimir / Salvar PDF</button>
+            <button class="btn-generate" onclick="voltarEdicao()" style="background:#555;">↩️ Voltar e editar</button>
+        </div>
     </div>
-    
+
+    <!-- Modal de configuração (categorias) -->
+    <div class="config-modal" id="configModal">
+        <div class="config-content">
+            <h3>Gerenciar Lista de Irmãos por Categoria</h3>
+            <div class="add-area">
+                <input type="text" id="novaCategoria" placeholder="Nova categoria (ex: Oração)" style="flex:1;">
+                <button onclick="adicionarCategoria()">Adicionar Categoria</button>
+            </div>
+            <div id="categoriasContainer"></div>
+            <div class="import-area">
+                <h4>📥 Importar lista de nomes</h4>
+                <p style="font-size:0.85em; margin-bottom:5px;">Cole os nomes (um por linha) e selecione a categoria:</p>
+                <select id="importCategoria"></select>
+                <textarea id="importTextarea" placeholder="João&#10;Maria&#10;José&#10;..."></textarea>
+                <button onclick="importarNomes()">Importar para categoria</button>
+            </div>
+            <button onclick="fecharConfig()" style="margin-top:10px; padding:5px 20px;">Fechar</button>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>
