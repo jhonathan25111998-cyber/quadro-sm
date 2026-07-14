@@ -118,7 +118,7 @@ body {
 .icon-comp::before { content: "💻 "; color: #1976d2; }
 .icon-mic::before { content: "🎤 "; color: #1976d2; }
 
-/* ----- MODAL DE CONFIGURAÇÃO (com importação) ----- */
+/* ----- MODAL DE CONFIGURAÇÃO ----- */
 .config-modal {
     display: none; position: fixed;
     top: 0; left: 0; width: 100%; height: 100%;
