@@ -199,7 +199,6 @@ function preencherTodosSelects() {
         }
     });
 
-    // Preenche selects das partes (dinâmicos) – cada parte terá dois selects
     preencherPartesSelects();
 }
 
@@ -236,9 +235,11 @@ function preencherPartesSelects() {
         });
     }
 
-    // ---- JOIAS e LEITURA (adicionados dinamicamente ao container de Tesouros) ----
+    // ---- JOIAS e LEITURA ----
+    // Adiciona Joias e Leitura diretamente no container de Tesouros (ou como divs separadas)
     const containerT2 = document.getElementById('tesourosForm');
-    if (dados.joias.length > 0) {
+    if (containerT2) {
+        // JOIAS
         dados.joias.forEach((t, i) => {
             const div = document.createElement('div');
             div.className = 'form-item';
@@ -264,8 +265,7 @@ function preencherPartesSelects() {
                 }
             });
         });
-    }
-    if (dados.leitura.length > 0) {
+        // LEITURA DA BÍBLIA
         dados.leitura.forEach((t, i) => {
             const div = document.createElement('div');
             div.className = 'form-item';
@@ -324,34 +324,32 @@ function preencherPartesSelects() {
             }
         });
 
-        // DISCURSO (se houver)
-        if (dados.discurso.length > 0) {
-            dados.discurso.forEach((t, i) => {
-                const div = document.createElement('div');
-                div.className = 'form-item';
-                div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><select id="d${i}_1" data-categoria="DISCURSO" style="flex:1;"><option value="">Principal</option></select><select id="d${i}_2" data-categoria="DISCURSO" style="flex:1;"><option value="">Ajudante</option></select></div>`;
-                containerM.appendChild(div);
-                const selects = div.querySelectorAll('select');
-                selects.forEach(sel => {
-                    const cat = sel.dataset.categoria;
-                    const current = sel.value;
-                    sel.innerHTML = '';
-                    const opt = document.createElement('option');
-                    opt.value = '';
-                    opt.textContent = '(Selecione)';
-                    sel.appendChild(opt);
-                    if (categorias[cat]) {
-                        categorias[cat].forEach(nome => {
-                            const opt2 = document.createElement('option');
-                            opt2.value = nome;
-                            opt2.textContent = nome;
-                            if (nome === current) opt2.selected = true;
-                            sel.appendChild(opt2);
-                        });
-                    }
-                });
+        // DISCURSO
+        dados.discurso.forEach((t, i) => {
+            const div = document.createElement('div');
+            div.className = 'form-item';
+            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><select id="d${i}_1" data-categoria="DISCURSO" style="flex:1;"><option value="">Principal</option></select><select id="d${i}_2" data-categoria="DISCURSO" style="flex:1;"><option value="">Ajudante</option></select></div>`;
+            containerM.appendChild(div);
+            const selects = div.querySelectorAll('select');
+            selects.forEach(sel => {
+                const cat = sel.dataset.categoria;
+                const current = sel.value;
+                sel.innerHTML = '';
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = '(Selecione)';
+                sel.appendChild(opt);
+                if (categorias[cat]) {
+                    categorias[cat].forEach(nome => {
+                        const opt2 = document.createElement('option');
+                        opt2.value = nome;
+                        opt2.textContent = nome;
+                        if (nome === current) opt2.selected = true;
+                        sel.appendChild(opt2);
+                    });
+                }
             });
-        }
+        });
     }
 
     // ---- VIDA CRISTÃ ----
@@ -386,34 +384,32 @@ function preencherPartesSelects() {
             }
         });
 
-        // EBC (Estudo bíblico de congregação) – se houver
-        if (dados.ebc.length > 0) {
-            dados.ebc.forEach((t, i) => {
-                const div = document.createElement('div');
-                div.className = 'form-item';
-                div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><select id="e${i}_1" data-categoria="EBC" style="flex:1;"><option value="">Principal</option></select><select id="e${i}_2" data-categoria="EBC" style="flex:1;"><option value="">Ajudante</option></select></div>`;
-                containerV.appendChild(div);
-                const selects = div.querySelectorAll('select');
-                selects.forEach(sel => {
-                    const cat = sel.dataset.categoria;
-                    const current = sel.value;
-                    sel.innerHTML = '';
-                    const opt = document.createElement('option');
-                    opt.value = '';
-                    opt.textContent = '(Selecione)';
-                    sel.appendChild(opt);
-                    if (categorias[cat]) {
-                        categorias[cat].forEach(nome => {
-                            const opt2 = document.createElement('option');
-                            opt2.value = nome;
-                            opt2.textContent = nome;
-                            if (nome === current) opt2.selected = true;
-                            sel.appendChild(opt2);
-                        });
-                    }
-                });
+        // EBC
+        dados.ebc.forEach((t, i) => {
+            const div = document.createElement('div');
+            div.className = 'form-item';
+            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><select id="e${i}_1" data-categoria="EBC" style="flex:1;"><option value="">Principal</option></select><select id="e${i}_2" data-categoria="EBC" style="flex:1;"><option value="">Ajudante</option></select></div>`;
+            containerV.appendChild(div);
+            const selects = div.querySelectorAll('select');
+            selects.forEach(sel => {
+                const cat = sel.dataset.categoria;
+                const current = sel.value;
+                sel.innerHTML = '';
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = '(Selecione)';
+                sel.appendChild(opt);
+                if (categorias[cat]) {
+                    categorias[cat].forEach(nome => {
+                        const opt2 = document.createElement('option');
+                        opt2.value = nome;
+                        opt2.textContent = nome;
+                        if (nome === current) opt2.selected = true;
+                        sel.appendChild(opt2);
+                    });
+                }
             });
-        }
+        });
     }
 }
 
@@ -439,7 +435,6 @@ document.getElementById('fileInput').addEventListener('change', async function(e
             else items.push(txt.replace(/^\d+\.\s*/, ''));
         });
         if (h2.includes('TESOUROS')) {
-            // Separar Joias e Leitura
             const joias = items.filter(item => item.includes('Joias espirituais'));
             const leitura = items.filter(item => item.includes('Leitura da Bíblia'));
             const resto = items.filter(item => !item.includes('Joias espirituais') && !item.includes('Leitura da Bíblia'));
@@ -448,14 +443,12 @@ document.getElementById('fileInput').addEventListener('change', async function(e
             dados.leitura = leitura;
         }
         if (h2.includes('MINISTÉRIO')) {
-            // Separar Discurso
             const discurso = items.filter(item => item.includes('Discurso'));
             const resto = items.filter(item => !item.includes('Discurso'));
             dados.ministerio = resto;
             dados.discurso = discurso;
         }
         if (h2.includes('VIDA CRISTÃ')) {
-            // Separar EBC
             const ebc = items.filter(item => item.includes('Estudo bíblico de congregação'));
             const resto = items.filter(item => !item.includes('Estudo bíblico de congregação'));
             dados.vida = resto;
@@ -489,8 +482,7 @@ document.getElementById('fileInput').addEventListener('change', async function(e
 function gerarVisualizacao() {
     document.getElementById('headerTitulo').style.display = 'none';
 
-    // Calcular numerações
-    const numBase = 4; // Ministério começa em 4
+    const numBase = 4;
     const numMinisterio = numBase;
     const numDiscurso = numBase + dados.ministerio.length;
     const numVida = numBase + dados.ministerio.length + dados.discurso.length;
