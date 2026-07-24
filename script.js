@@ -168,7 +168,7 @@ window.voltarEdicao = function() {
     document.getElementById('editMode').style.display = 'block';
 };
 
-// ---------- FUNÇÕES INTERNAS (não precisam ser globais) ----------
+// ---------- FUNÇÕES INTERNAS ----------
 function carregarCategorias() {
     const stored = localStorage.getItem('categoriasIrmãos');
     if (stored) {
@@ -274,48 +274,54 @@ function preencherTodosSelects() {
 }
 
 function preencherPartesSelects() {
-    // TESOUROS
+    // ---- Limpa TODOS os containers antes de preencher ----
     const containerT = document.getElementById('tesourosForm');
-    if (containerT && dados.tesouros.length > 0) {
-        let html = '<h3>TESOUROS</h3>';
-        dados.tesouros.forEach((t, i) => {
-            html += `<div class="form-item"><label>${i+1}. ${t}</label>`;
-            html += `<div style="flex:1; display:flex; gap:4px;">`;
-            html += `<select id="t${i}_1" data-categoria="TESOUROS" style="flex:1;"><option value="">Principal</option></select>`;
-            html += `<select id="t${i}_2" data-categoria="TESOUROS" style="flex:1;"><option value="">Ajudante</option></select>`;
-            html += `</div></div>`;
-        });
-        containerT.innerHTML = html;
-        containerT.querySelectorAll('select[data-categoria]').forEach(sel => {
-            const cat = sel.dataset.categoria;
-            const current = sel.value;
-            sel.innerHTML = '';
-            const opt = document.createElement('option');
-            opt.value = '';
-            opt.textContent = '(Selecione)';
-            sel.appendChild(opt);
-            if (categorias[cat]) {
-                categorias[cat].forEach(nome => {
-                    const opt2 = document.createElement('option');
-                    opt2.value = nome;
-                    opt2.textContent = nome;
-                    if (nome === current) opt2.selected = true;
-                    sel.appendChild(opt2);
-                });
-            }
-        });
-    }
+    const containerM = document.getElementById('ministerioForm');
+    const containerV = document.getElementById('vidaForm');
+    if (containerT) containerT.innerHTML = '';
+    if (containerM) containerM.innerHTML = '';
+    if (containerV) containerV.innerHTML = '';
 
-    // JOIAS e LEITURA
-    const containerT2 = document.getElementById('tesourosForm');
-    if (containerT2) {
+    // ---- TESOUROS ----
+    if (containerT) {
+        if (dados.tesouros.length > 0) {
+            let html = '<h3>TESOUROS</h3>';
+            dados.tesouros.forEach((t, i) => {
+                html += `<div class="form-item"><label>${i+1}. ${t}</label>`;
+                html += `<div style="flex:1; display:flex; gap:4px;">`;
+                html += `<select id="t${i}_1" data-categoria="TESOUROS" style="flex:1;"><option value="">Principal</option></select>`;
+                html += `<select id="t${i}_2" data-categoria="TESOUROS" style="flex:1;"><option value="">Ajudante</option></select>`;
+                html += `</div></div>`;
+            });
+            containerT.innerHTML = html;
+            // Preenche os selects
+            containerT.querySelectorAll('select[data-categoria]').forEach(sel => {
+                const cat = sel.dataset.categoria;
+                const current = sel.value;
+                sel.innerHTML = '';
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = '(Selecione)';
+                sel.appendChild(opt);
+                if (categorias[cat]) {
+                    categorias[cat].forEach(nome => {
+                        const opt2 = document.createElement('option');
+                        opt2.value = nome;
+                        opt2.textContent = nome;
+                        if (nome === current) opt2.selected = true;
+                        sel.appendChild(opt2);
+                    });
+                }
+            });
+        }
+
+        // ---- JOIAS ----
         dados.joias.forEach((t, i) => {
             const div = document.createElement('div');
             div.className = 'form-item';
             div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><select id="j${i}_1" data-categoria="JOIAS" style="flex:1;"><option value="">Principal</option></select><select id="j${i}_2" data-categoria="JOIAS" style="flex:1;"><option value="">Ajudante</option></select></div>`;
-            containerT2.appendChild(div);
-            const selects = div.querySelectorAll('select');
-            selects.forEach(sel => {
+            containerT.appendChild(div);
+            div.querySelectorAll('select').forEach(sel => {
                 const cat = sel.dataset.categoria;
                 const current = sel.value;
                 sel.innerHTML = '';
@@ -334,13 +340,14 @@ function preencherPartesSelects() {
                 }
             });
         });
+
+        // ---- LEITURA DA BÍBLIA ----
         dados.leitura.forEach((t, i) => {
             const div = document.createElement('div');
             div.className = 'form-item';
             div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><select id="l${i}_1" data-categoria="LEITURA DA BÍBLIA" style="flex:1;"><option value="">Principal</option></select><select id="l${i}_2" data-categoria="LEITURA DA BÍBLIA" style="flex:1;"><option value="">Ajudante</option></select></div>`;
-            containerT2.appendChild(div);
-            const selects = div.querySelectorAll('select');
-            selects.forEach(sel => {
+            containerT.appendChild(div);
+            div.querySelectorAll('select').forEach(sel => {
                 const cat = sel.dataset.categoria;
                 const current = sel.value;
                 sel.innerHTML = '';
@@ -361,44 +368,45 @@ function preencherPartesSelects() {
         });
     }
 
-    // MINISTÉRIO
-    const containerM = document.getElementById('ministerioForm');
+    // ---- MINISTÉRIO ----
     if (containerM) {
-        let html = '<h3>MINISTÉRIO</h3>';
-        dados.ministerio.forEach((t, i) => {
-            html += `<div class="form-item"><label>${i+4}. ${t}</label>`;
-            html += `<div style="flex:1; display:flex; gap:4px;">`;
-            html += `<select id="m${i}_1" data-categoria="PARTES" style="flex:1;"><option value="">Principal</option></select>`;
-            html += `<select id="m${i}_2" data-categoria="PARTES" style="flex:1;"><option value="">Ajudante</option></select>`;
-            html += `</div></div>`;
-        });
-        containerM.innerHTML = html;
-        containerM.querySelectorAll('select[data-categoria]').forEach(sel => {
-            const cat = sel.dataset.categoria;
-            const current = sel.value;
-            sel.innerHTML = '';
-            const opt = document.createElement('option');
-            opt.value = '';
-            opt.textContent = '(Selecione)';
-            sel.appendChild(opt);
-            if (categorias[cat]) {
-                categorias[cat].forEach(nome => {
-                    const opt2 = document.createElement('option');
-                    opt2.value = nome;
-                    opt2.textContent = nome;
-                    if (nome === current) opt2.selected = true;
-                    sel.appendChild(opt2);
-                });
-            }
-        });
+        if (dados.ministerio.length > 0) {
+            let html = '<h3>MINISTÉRIO</h3>';
+            dados.ministerio.forEach((t, i) => {
+                html += `<div class="form-item"><label>${i+4}. ${t}</label>`;
+                html += `<div style="flex:1; display:flex; gap:4px;">`;
+                html += `<select id="m${i}_1" data-categoria="PARTES" style="flex:1;"><option value="">Principal</option></select>`;
+                html += `<select id="m${i}_2" data-categoria="PARTES" style="flex:1;"><option value="">Ajudante</option></select>`;
+                html += `</div></div>`;
+            });
+            containerM.innerHTML = html;
+            containerM.querySelectorAll('select[data-categoria]').forEach(sel => {
+                const cat = sel.dataset.categoria;
+                const current = sel.value;
+                sel.innerHTML = '';
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = '(Selecione)';
+                sel.appendChild(opt);
+                if (categorias[cat]) {
+                    categorias[cat].forEach(nome => {
+                        const opt2 = document.createElement('option');
+                        opt2.value = nome;
+                        opt2.textContent = nome;
+                        if (nome === current) opt2.selected = true;
+                        sel.appendChild(opt2);
+                    });
+                }
+            });
+        }
 
+        // ---- DISCURSO ----
         dados.discurso.forEach((t, i) => {
             const div = document.createElement('div');
             div.className = 'form-item';
             div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><select id="d${i}_1" data-categoria="DISCURSO" style="flex:1;"><option value="">Principal</option></select><select id="d${i}_2" data-categoria="DISCURSO" style="flex:1;"><option value="">Ajudante</option></select></div>`;
             containerM.appendChild(div);
-            const selects = div.querySelectorAll('select');
-            selects.forEach(sel => {
+            div.querySelectorAll('select').forEach(sel => {
                 const cat = sel.dataset.categoria;
                 const current = sel.value;
                 sel.innerHTML = '';
@@ -419,45 +427,46 @@ function preencherPartesSelects() {
         });
     }
 
-    // VIDA CRISTÃ
-    const containerV = document.getElementById('vidaForm');
+    // ---- VIDA CRISTÃ ----
     if (containerV) {
         const numVida = 4 + dados.ministerio.length + dados.discurso.length;
-        let html = '<h3>VIDA CRISTÃ</h3>';
-        dados.vida.forEach((t, i) => {
-            html += `<div class="form-item"><label>${numVida+i}. ${t}</label>`;
-            html += `<div style="flex:1; display:flex; gap:4px;">`;
-            html += `<select id="v${i}_1" data-categoria="VIDA CRISTÃ" style="flex:1;"><option value="">Principal</option></select>`;
-            html += `<select id="v${i}_2" data-categoria="VIDA CRISTÃ" style="flex:1;"><option value="">Ajudante</option></select>`;
-            html += `</div></div>`;
-        });
-        containerV.innerHTML = html;
-        containerV.querySelectorAll('select[data-categoria]').forEach(sel => {
-            const cat = sel.dataset.categoria;
-            const current = sel.value;
-            sel.innerHTML = '';
-            const opt = document.createElement('option');
-            opt.value = '';
-            opt.textContent = '(Selecione)';
-            sel.appendChild(opt);
-            if (categorias[cat]) {
-                categorias[cat].forEach(nome => {
-                    const opt2 = document.createElement('option');
-                    opt2.value = nome;
-                    opt2.textContent = nome;
-                    if (nome === current) opt2.selected = true;
-                    sel.appendChild(opt2);
-                });
-            }
-        });
+        if (dados.vida.length > 0) {
+            let html = '<h3>VIDA CRISTÃ</h3>';
+            dados.vida.forEach((t, i) => {
+                html += `<div class="form-item"><label>${numVida+i}. ${t}</label>`;
+                html += `<div style="flex:1; display:flex; gap:4px;">`;
+                html += `<select id="v${i}_1" data-categoria="VIDA CRISTÃ" style="flex:1;"><option value="">Principal</option></select>`;
+                html += `<select id="v${i}_2" data-categoria="VIDA CRISTÃ" style="flex:1;"><option value="">Ajudante</option></select>`;
+                html += `</div></div>`;
+            });
+            containerV.innerHTML = html;
+            containerV.querySelectorAll('select[data-categoria]').forEach(sel => {
+                const cat = sel.dataset.categoria;
+                const current = sel.value;
+                sel.innerHTML = '';
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = '(Selecione)';
+                sel.appendChild(opt);
+                if (categorias[cat]) {
+                    categorias[cat].forEach(nome => {
+                        const opt2 = document.createElement('option');
+                        opt2.value = nome;
+                        opt2.textContent = nome;
+                        if (nome === current) opt2.selected = true;
+                        sel.appendChild(opt2);
+                    });
+                }
+            });
+        }
 
+        // ---- EBC ----
         dados.ebc.forEach((t, i) => {
             const div = document.createElement('div');
             div.className = 'form-item';
             div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><select id="e${i}_1" data-categoria="EBC" style="flex:1;"><option value="">Principal</option></select><select id="e${i}_2" data-categoria="EBC" style="flex:1;"><option value="">Ajudante</option></select></div>`;
             containerV.appendChild(div);
-            const selects = div.querySelectorAll('select');
-            selects.forEach(sel => {
+            div.querySelectorAll('select').forEach(sel => {
                 const cat = sel.dataset.categoria;
                 const current = sel.value;
                 sel.innerHTML = '';
