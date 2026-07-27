@@ -16,9 +16,34 @@ let dados = {
 // ---------- ESTRUTURA DE CATEGORIAS E NOMES ----------
 let categorias = {};
 
+// ---------- CONFIGURAÇÃO DA PLANILHA GOOGLE ----------
+const PLANILHA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSpLm4xRT2db5VNlHfQppidLW9hLkve9UuvoQS4bILrqFn0guIcv_du8PWjpTT1Ag7UQ3RN_AnrFIKQ/pub?output=csv';
+
+// Mapeamento das categorias da planilha para as categorias internas
+const MAP_CATEGORIA = {
+    "PRESIDENTE": "PRESIDÊNCIA",
+    "ORAÇÃO": "ORAÇÕES",
+    "TESOUROS": "TESOUROS",
+    "JOIAS": "JOIAS",
+    "LEITURA": "LEITURA DA BÍBLIA",
+    "PARTE 1": "PARTES",
+    "PARTE 2": "PARTES",
+    "PARTE 3": "PARTES",
+    "PARTE 4": "PARTES",
+    "VIDA CRISTÃ 1": "VIDA CRISTÃ",
+    "VIDA CRISTÃ2": "VIDA CRISTÃ",
+    "EBC": "EBC",
+    "NL": null // será ignorado
+};
+
 // ---------- INICIALIZAÇÃO ----------
 document.addEventListener('DOMContentLoaded', function() {
-    carregarCategorias();
+    // Primeiro carrega os dados que já estão salvos localmente
+    carregarCategoriasLocal();
+    // Depois tenta atualizar com a planilha online (se existir)
+    carregarPlanilhaGoogle().then(() => {
+        // A planilha já salva automaticamente no localStorage
+    });
 });
 
 // ---------- FUNÇÕES GLOBAIS (para onclick) ----------
@@ -37,7 +62,7 @@ window.adicionarCategoria = function() {
     const cat = input.value.trim();
     if (cat && !categorias[cat]) {
         categorias[cat] = [];
-        salvarCategorias();
+        salvarCategoriasLocal();
         input.value = '';
     }
 };
@@ -45,7 +70,7 @@ window.adicionarCategoria = function() {
 window.removerCategoria = function(cat) {
     if (confirm(`Remover categoria "${cat}" e todos os seus nomes?`)) {
         delete categorias[cat];
-        salvarCategorias();
+        salvarCategoriasLocal();
     }
 };
 
@@ -54,14 +79,14 @@ window.adicionarNome = function(cat) {
     const nome = input.value.trim();
     if (nome && !categorias[cat].includes(nome)) {
         categorias[cat].push(nome);
-        salvarCategorias();
+        salvarCategoriasLocal();
         input.value = '';
     }
 };
 
 window.removerNome = function(cat, nome) {
     categorias[cat] = categorias[cat].filter(n => n !== nome);
-    salvarCategorias();
+    salvarCategoriasLocal();
 };
 
 window.importarNomes = function() {
@@ -84,7 +109,7 @@ window.importarNomes = function() {
         }
     });
     if (adicionados > 0) {
-        salvarCategorias();
+        salvarCategoriasLocal();
         alert(`${adicionados} nome(s) importados para a categoria "${cat}".`);
     } else {
         alert('Todos os nomes já existem nesta categoria.');
@@ -100,6 +125,7 @@ window.gerarVisualizacao = function() {
     const numDiscurso = numBase + dados.ministerio.length;
     const numVida = numBase + dados.ministerio.length + dados.discurso.length;
 
+    // O array CANTICOS agora vem do arquivo canticos.js
     const cantoIniTxt = `Cântico - ${dados.cantoInicial} ${CANTICOS[dados.cantoInicial] || ''}`;
     const cantoMeioTxt = `Cântico - ${dados.cantoMeio} "${CANTICOS[dados.cantoMeio] || ''}"`;
     const cantoFinalNum = document.getElementById('cantoFinalNum').value;
@@ -169,7 +195,9 @@ window.voltarEdicao = function() {
 };
 
 // ---------- FUNÇÕES INTERNAS ----------
-function carregarCategorias() {
+
+// Carrega as categorias do localStorage
+function carregarCategoriasLocal() {
     const stored = localStorage.getItem('categoriasIrmãos');
     if (stored) {
         categorias = JSON.parse(stored);
@@ -192,20 +220,111 @@ function carregarCategorias() {
             "Mídia": [],
             "Palco": []
         };
-        salvarCategorias();
+        salvarCategoriasLocal();
     }
     renderizarCategoriasUI();
     preencherTodosSelects();
     preencherSelectImport();
 }
 
-function salvarCategorias() {
+// Salva as categorias no localStorage
+function salvarCategoriasLocal() {
     localStorage.setItem('categoriasIrmãos', JSON.stringify(categorias));
     renderizarCategoriasUI();
     preencherTodosSelects();
     preencherSelectImport();
 }
 
+// ---------- FUNÇÃO DE NORMALIZAÇÃO DE NOMES ----------
+function normalizarNome(nome) {
+    nome = nome.trim();
+    return nome.split(/\s+/).map(part => {
+        return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+    }).join(' ');
+}
+
+// ---------- LEITURA DA PLANILHA GOOGLE ----------
+async function carregarPlanilhaGoogle() {
+    if (!PLANILHA_URL) {
+        console.warn('URL da planilha não configurada.');
+        return;
+    }
+
+    try {
+        const response = await fetch(PLANILHA_URL);
+        const csvText = await response.text();
+        const linhas = csvText.split(/\r?\n/).filter(l => l.trim() !== '');
+        if (linhas.length < 2) return;
+
+        const cabecalho = linhas[0].split(',');
+        const semanas = [];
+        for (let i = 0; i < cabecalho.length; i += 3) {
+            const semanaNome = cabecalho[i]?.trim();
+            if (semanaNome && semanaNome.length > 5) {
+                semanas.push({ col: i, nome: semanaNome });
+            }
+        }
+
+        let dadosCarregados = 0;
+
+        for (let l = 1; l < linhas.length; l++) {
+            const cols = linhas[l].split(',');
+            const primeiraColuna = cols[0]?.trim() || '';
+
+            if (primeiraColuna.match(/^(JH\?ONATH\?AN|CAIO|FAGNER|GUSTAVO|JO\(A|VIT\(O|LUCAS|IRINEU|LU\[IÍ\]S|TALES|ADRIANO)/i)) {
+                continue;
+            }
+            if (primeiraColuna.includes('NECESSIDADES LOCAIS')) {
+                continue;
+            }
+
+            for (const sem of semanas) {
+                const categoriaRaw = cols[sem.col]?.trim();
+                if (!categoriaRaw) continue;
+
+                const categoriaInterna = MAP_CATEGORIA[categoriaRaw];
+                if (!categoriaInterna) continue;
+
+                const nomeRaw = cols[sem.col + 1]?.trim();
+                if (!nomeRaw) continue;
+
+                let nomes = [];
+                if (nomeRaw.includes(' - ')) {
+                    nomes = nomeRaw.split(' - ').map(n => n.trim());
+                } else if (nomeRaw.includes('-')) {
+                    nomes = nomeRaw.split('-').map(n => n.trim());
+                } else if (nomeRaw.includes('/')) {
+                    nomes = nomeRaw.split('/').map(n => n.trim());
+                } else {
+                    nomes = [nomeRaw];
+                }
+
+                if (!categorias[categoriaInterna]) {
+                    categorias[categoriaInterna] = [];
+                }
+                nomes.forEach(nome => {
+                    const nomeNormalizado = normalizarNome(nome);
+                    if (nomeNormalizado && !categorias[categoriaInterna].includes(nomeNormalizado)) {
+                        categorias[categoriaInterna].push(nomeNormalizado);
+                        dadosCarregados++;
+                    }
+                });
+            }
+        }
+
+        if (dadosCarregados > 0) {
+            localStorage.setItem('categoriasIrmãos', JSON.stringify(categorias));
+            renderizarCategoriasUI();
+            preencherTodosSelects();
+            preencherSelectImport();
+            console.log(`${dadosCarregados} nomes importados da planilha Google.`);
+        }
+    } catch (e) {
+        console.warn('Não foi possível carregar a planilha do Google. Usando dados locais.', e);
+    }
+}
+
+// ---------- FUNÇÕES DE UI ----------
 function renderizarCategoriasUI() {
     const container = document.getElementById('categoriasContainer');
     let html = '';
@@ -248,7 +367,6 @@ function preencherSelectImport() {
 }
 
 function preencherTodosSelects() {
-    // Preenche selects fixos
     document.querySelectorAll('.form-item[data-categoria]').forEach(item => {
         const select = item.querySelector('select');
         if (!select) return;
@@ -274,7 +392,6 @@ function preencherTodosSelects() {
 }
 
 function preencherPartesSelects() {
-    // ---- Limpa TODOS os containers antes de preencher ----
     const containerT = document.getElementById('tesourosForm');
     const containerM = document.getElementById('ministerioForm');
     const containerV = document.getElementById('vidaForm');
@@ -294,7 +411,6 @@ function preencherPartesSelects() {
                 html += `</div></div>`;
             });
             containerT.innerHTML = html;
-            // Preenche os selects
             containerT.querySelectorAll('select[data-categoria]').forEach(sel => {
                 const cat = sel.dataset.categoria;
                 const current = sel.value;
@@ -315,7 +431,6 @@ function preencherPartesSelects() {
             });
         }
 
-        // ---- JOIAS ----
         dados.joias.forEach((t, i) => {
             const div = document.createElement('div');
             div.className = 'form-item';
@@ -341,7 +456,6 @@ function preencherPartesSelects() {
             });
         });
 
-        // ---- LEITURA DA BÍBLIA ----
         dados.leitura.forEach((t, i) => {
             const div = document.createElement('div');
             div.className = 'form-item';
@@ -400,7 +514,6 @@ function preencherPartesSelects() {
             });
         }
 
-        // ---- DISCURSO ----
         dados.discurso.forEach((t, i) => {
             const div = document.createElement('div');
             div.className = 'form-item';
@@ -460,7 +573,6 @@ function preencherPartesSelects() {
             });
         }
 
-        // ---- EBC ----
         dados.ebc.forEach((t, i) => {
             const div = document.createElement('div');
             div.className = 'form-item';
