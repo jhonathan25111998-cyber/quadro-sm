@@ -18,14 +18,10 @@
             <p>Selecione o arquivo <strong>.xml</strong> da semana (formato DAISY).</p>
             <label for="fileInput">Escolher arquivo</label>
             <input type="file" id="fileInput" accept=".xml">
-            <button class="btn-config" onclick="abrirConfig()">⚙️ Gerenciar Lista de Irmãos</button>
         </div>
 
         <!-- Modo edição -->
         <div id="editMode" style="display:none;">
-            <div style="display:flex; justify-content:flex-end; margin-bottom:5px;">
-                <button class="btn-config" onclick="abrirConfig()">⚙️ Gerenciar Lista de Irmãos</button>
-            </div>
             <div class="colunas-form">
                 <div style="flex:65">
                     <div class="form-item"><label>Data:</label><input type="text" id="dataInput" readonly></div>
@@ -63,26 +59,6 @@
             <div id="layoutFinal"></div>
             <button class="btn-generate" onclick="window.print()" style="background:#2c6e49;">🖨️ Imprimir / Salvar PDF</button>
             <button class="btn-generate" onclick="voltarEdicao()" style="background:#555;">↩️ Voltar e editar</button>
-        </div>
-    </div>
-
-    <!-- Modal de configuração -->
-    <div class="config-modal" id="configModal">
-        <div class="config-content">
-            <h3>Gerenciar Lista de Irmãos por Categoria</h3>
-            <div class="add-area">
-                <input type="text" id="novaCategoria" placeholder="Nova categoria (ex: Oração)" style="flex:1;">
-                <button onclick="adicionarCategoria()">Adicionar Categoria</button>
-            </div>
-            <div id="categoriasContainer"></div>
-            <div class="import-area">
-                <h4>📥 Importar lista de nomes</h4>
-                <p style="font-size:0.85em; margin-bottom:5px;">Cole os nomes (um por linha) e selecione a categoria:</p>
-                <select id="importCategoria"></select>
-                <textarea id="importTextarea" placeholder="João&#10;Maria&#10;José&#10;..."></textarea>
-                <button onclick="importarNomes()">Importar para categoria</button>
-            </div>
-            <button onclick="fecharConfig()" style="margin-top:10px; padding:5px 20px;">Fechar</button>
         </div>
     </div>
 
