@@ -1,6 +1,7 @@
 // ---------- DADOS DA SEMANA ----------
 let dados = {
-    data: "",
+    data: "",          // Texto original do XML (ex: "3-9 de agosto")
+    dataISO: "",       // Data no formato YYYY-MM-DD (para filtro)
     cantoInicial: 0,
     cantoMeio: 0,
     cantoFinal: 0,
@@ -33,15 +34,13 @@ const MAP_CATEGORIA = {
     "VIDA CRISTÃ 1": "VIDA CRISTÃ",
     "VIDA CRISTÃ2": "VIDA CRISTÃ",
     "EBC": "EBC",
-    "NL": null // será ignorado
+    "NL": null
 };
 
 // ---------- INICIALIZAÇÃO ----------
 document.addEventListener('DOMContentLoaded', function() {
-    // Carrega o cache local (fallback)
-    carregarCategoriasLocal();
-    // Tenta atualizar com a planilha online
-    carregarPlanilhaGoogle();
+    carregarCategoriasLocal();   // fallback
+    carregarPlanilhaGoogle();    // tenta carregar com filtro
 });
 
 // ---------- FUNÇÕES GLOBAIS ----------
@@ -164,9 +163,62 @@ function normalizarNome(nome) {
     }).join(' ');
 }
 
-// Leitura da planilha Google
+// ---------- CONVERSÃO DA DATA DO XML PARA ISO ----------
+function converterDataParaISO(dataTexto) {
+    // Exemplo: "3-9 de agosto" ou "31 de agosto–6 de setembro"
+    // Vamos extrair o primeiro dia e o mês.
+    // Assumimos que o ano é o ano atual (2026). Você pode ajustar se necessário.
+
+    const anoAtual = new Date().getFullYear(); // ou fixo: 2026
+
+    // Remove " de " e separa
+    let partes = dataTexto.replace(/ de /g, ' ').replace(/–/g, '-').split(' ');
+    // Ex: ["3-9", "agosto"] ou ["31", "agosto–6", "setembro"] (caso spans)
+
+    // Se tiver "agosto–6 setembro", pegamos o primeiro mês
+    let dia, mes;
+    if (partes.length >= 2) {
+        // O primeiro elemento pode ser "3-9" ou "31"
+        let primeiro = partes[0];
+        if (primeiro.includes('-')) {
+            dia = parseInt(primeiro.split('-')[0]);
+        } else {
+            dia = parseInt(primeiro);
+        }
+        // O mês está em algum lugar depois
+        // Procuramos um dos meses em português
+        const meses = {
+            'janeiro': 1, 'fevereiro': 2, 'março': 3, 'abril': 4,
+            'maio': 5, 'junho': 6, 'julho': 7, 'agosto': 8,
+            'setembro': 9, 'outubro': 10, 'novembro': 11, 'dezembro': 12
+        };
+        for (let p of partes) {
+            let m = p.toLowerCase();
+            if (meses[m]) {
+                mes = meses[m];
+                break;
+            }
+        }
+    }
+
+    if (dia && mes) {
+        // Formata como YYYY-MM-DD (com zero à esquerda)
+        const diaStr = String(dia).padStart(2, '0');
+        const mesStr = String(mes).padStart(2, '0');
+        return `${anoAtual}-${mesStr}-${diaStr}`;
+    }
+    return null;
+}
+
+// ---------- LEITURA DA PLANILHA GOOGLE COM FILTRO ----------
 async function carregarPlanilhaGoogle() {
     if (!PLANILHA_URL) return;
+
+    // Se ainda não temos a data ISO, não fazemos nada
+    if (!dados.dataISO) {
+        console.warn('Data da semana não definida. Carregue o XML primeiro.');
+        return;
+    }
 
     try {
         const response = await fetch(PLANILHA_URL);
@@ -174,67 +226,59 @@ async function carregarPlanilhaGoogle() {
         const linhas = csvText.split(/\r?\n/).filter(l => l.trim() !== '');
         if (linhas.length < 2) return;
 
-        const cabecalho = linhas[0].split(',');
-        const semanas = [];
-        for (let i = 0; i < cabecalho.length; i += 3) {
-            const semanaNome = cabecalho[i]?.trim();
-            if (semanaNome && semanaNome.length > 5) {
-                semanas.push({ col: i, nome: semanaNome });
-            }
-        }
+        // A primeira linha é o cabeçalho: "Semana ID", "Categoria", "Nome", etc.
+        // Vamos assumir que a coluna 0 é a data, coluna 1 é a categoria, coluna 2 é o nome.
+        // Mas precisamos descobrir os índices corretos.
+        // Vamos considerar que a primeira coluna é a data, a segunda a categoria, a terceira o nome.
+        // Se houver mais colunas, ignoramos.
 
         let dadosCarregados = 0;
 
         for (let l = 1; l < linhas.length; l++) {
             const cols = linhas[l].split(',');
-            const primeiraColuna = cols[0]?.trim() || '';
+            const dataRaw = cols[0]?.trim() || '';
+            const categoriaRaw = cols[1]?.trim() || '';
+            const nomeRaw = cols[2]?.trim() || '';
 
-            // Pula linhas de correção ou notas
-            if (primeiraColuna.match(/^(JH\?ONATH\?AN|CAIO|FAGNER|GUSTAVO|JO\(A|VIT\(O|LUCAS|IRINEU|LU\[IÍ\]S|TALES|ADRIANO)/i)) {
-                continue;
+            // Pula linhas que não têm data ou categoria
+            if (!dataRaw || !categoriaRaw || !nomeRaw) continue;
+
+            // Filtra apenas a semana atual
+            if (dataRaw !== dados.dataISO) continue;
+
+            const categoriaInterna = MAP_CATEGORIA[categoriaRaw];
+            if (!categoriaInterna) continue;
+
+            // Divide nomes por separadores
+            let nomes = [];
+            if (nomeRaw.includes(' - ')) {
+                nomes = nomeRaw.split(' - ').map(n => n.trim());
+            } else if (nomeRaw.includes('-')) {
+                nomes = nomeRaw.split('-').map(n => n.trim());
+            } else if (nomeRaw.includes('/')) {
+                nomes = nomeRaw.split('/').map(n => n.trim());
+            } else {
+                nomes = [nomeRaw];
             }
-            if (primeiraColuna.includes('NECESSIDADES LOCAIS')) {
-                continue;
+
+            if (!categorias[categoriaInterna]) {
+                categorias[categoriaInterna] = [];
             }
-
-            for (const sem of semanas) {
-                const categoriaRaw = cols[sem.col]?.trim();
-                if (!categoriaRaw) continue;
-
-                const categoriaInterna = MAP_CATEGORIA[categoriaRaw];
-                if (!categoriaInterna) continue;
-
-                const nomeRaw = cols[sem.col + 1]?.trim();
-                if (!nomeRaw) continue;
-
-                let nomes = [];
-                if (nomeRaw.includes(' - ')) {
-                    nomes = nomeRaw.split(' - ').map(n => n.trim());
-                } else if (nomeRaw.includes('-')) {
-                    nomes = nomeRaw.split('-').map(n => n.trim());
-                } else if (nomeRaw.includes('/')) {
-                    nomes = nomeRaw.split('/').map(n => n.trim());
-                } else {
-                    nomes = [nomeRaw];
+            nomes.forEach(nome => {
+                const nomeNormalizado = normalizarNome(nome);
+                if (nomeNormalizado && !categorias[categoriaInterna].includes(nomeNormalizado)) {
+                    categorias[categoriaInterna].push(nomeNormalizado);
+                    dadosCarregados++;
                 }
-
-                if (!categorias[categoriaInterna]) {
-                    categorias[categoriaInterna] = [];
-                }
-                nomes.forEach(nome => {
-                    const nomeNormalizado = normalizarNome(nome);
-                    if (nomeNormalizado && !categorias[categoriaInterna].includes(nomeNormalizado)) {
-                        categorias[categoriaInterna].push(nomeNormalizado);
-                        dadosCarregados++;
-                    }
-                });
-            }
+            });
         }
 
         if (dadosCarregados > 0) {
             localStorage.setItem('categoriasIrmãos', JSON.stringify(categorias));
             preencherTodosSelects();
-            console.log(`${dadosCarregados} nomes importados da planilha Google.`);
+            console.log(`${dadosCarregados} nomes carregados para a semana ${dados.dataISO}.`);
+        } else {
+            console.log(`Nenhum nome encontrado para a semana ${dados.dataISO}.`);
         }
     } catch (e) {
         console.warn('Não foi possível carregar a planilha. Usando cache local.', e);
@@ -486,6 +530,16 @@ document.getElementById('fileInput').addEventListener('change', async function(e
     dados.data = xmlDoc.querySelector('level1 > h1')?.textContent.trim() || "DATA";
     document.getElementById('dataInput').value = dados.data;
     document.getElementById('semanaData').textContent = dados.data.toUpperCase();
+
+    // Converte a data do XML para ISO (YYYY-MM-DD)
+    dados.dataISO = converterDataParaISO(dados.data);
+    if (dados.dataISO) {
+        console.log('Data da semana convertida para ISO:', dados.dataISO);
+        // Agora carrega a planilha com o filtro
+        carregarPlanilhaGoogle();
+    } else {
+        console.warn('Não foi possível converter a data do XML para ISO.');
+    }
 
     let allSongs = [];
     xmlDoc.querySelectorAll('level2').forEach(section => {
