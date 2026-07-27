@@ -17,7 +17,7 @@ let dados = {
 // ---------- CONFIGURAÇÃO DA PLANILHA GOOGLE ----------
 const PLANILHA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSpLm4xRT2db5VNlHfQppidLW9hLkve9UuvoQS4bILrqFn0guIcv_du8PWjpTT1Ag7UQ3RN_AnrFIKQ/pub?output=csv';
 
-// Mapeamento das categorias da planilha para as categorias internas
+// Mapeamento das categorias
 const MAP_CATEGORIA = {
     "PRESIDENTE": "PRESIDÊNCIA",
     "ORAÇÃO": "ORAÇÕES",
@@ -120,14 +120,8 @@ window.voltarEdicao = function() {
 };
 
 // ---------- FUNÇÕES INTERNAS ----------
-
-// Salva e carrega os dados localmente (fallback)
 function salvarDadosLocal() {
-    const dataToSave = {
-        categorias: categorias,
-        dados: dados
-    };
-    localStorage.setItem('designacoesData', JSON.stringify(dataToSave));
+    localStorage.setItem('designacoesData', JSON.stringify({ categorias, dados }));
 }
 
 function carregarDadosLocal() {
@@ -139,75 +133,47 @@ function carregarDadosLocal() {
         preencherTodosInputs();
     } else {
         categorias = {
-            "ORAÇÕES": [],
-            "PRESIDÊNCIA": [],
-            "PARTES": [],
-            "JOIAS": [],
-            "LEITURA DA BÍBLIA": [],
-            "TESOUROS": [],
-            "VIDA CRISTÃ": [],
-            "EBC": [],
-            "LEITOR": [],
-            "DISCURSO": [],
-            "Indicador Entrada": [],
-            "Indicador Auditório": [],
-            "Indicador Zoom": [],
-            "Microfone": [],
-            "Mídia": [],
-            "Palco": []
+            "ORAÇÕES": [], "PRESIDÊNCIA": [], "PARTES": [], "JOIAS": [],
+            "LEITURA DA BÍBLIA": [], "TESOUROS": [], "VIDA CRISTÃ": [],
+            "EBC": [], "LEITOR": [], "DISCURSO": [],
+            "Indicador Entrada": [], "Indicador Auditório": [], "Indicador Zoom": [],
+            "Microfone": [], "Mídia": [], "Palco": []
         };
         salvarDadosLocal();
     }
 }
 
-// Normalização de nomes
 function normalizarNome(nome) {
-    nome = nome.trim();
-    return nome.split(/\s+/).map(part => {
-        return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
-    }).join(' ');
+    return nome.trim().split(/\s+/).map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');
 }
 
 // ---------- CONVERSÃO DA DATA DO XML PARA ISO ----------
 function converterDataParaISO(dataTexto) {
-    const anoAtual = new Date().getFullYear(); // ou fixo: 2026
+    const anoAtual = new Date().getFullYear();
     let partes = dataTexto.replace(/ de /g, ' ').replace(/–/g, '-').split(' ');
     let dia, mes;
     if (partes.length >= 2) {
         let primeiro = partes[0];
-        if (primeiro.includes('-')) {
-            dia = parseInt(primeiro.split('-')[0]);
-        } else {
-            dia = parseInt(primeiro);
-        }
+        dia = parseInt(primeiro.includes('-') ? primeiro.split('-')[0] : primeiro);
         const meses = {
-            'janeiro': 1, 'fevereiro': 2, 'março': 3, 'abril': 4,
-            'maio': 5, 'junho': 6, 'julho': 7, 'agosto': 8,
-            'setembro': 9, 'outubro': 10, 'novembro': 11, 'dezembro': 12
+            'janeiro':1,'fevereiro':2,'março':3,'abril':4,
+            'maio':5,'junho':6,'julho':7,'agosto':8,
+            'setembro':9,'outubro':10,'novembro':11,'dezembro':12
         };
         for (let p of partes) {
             let m = p.toLowerCase();
-            if (meses[m]) {
-                mes = meses[m];
-                break;
-            }
+            if (meses[m]) { mes = meses[m]; break; }
         }
     }
     if (dia && mes) {
-        const diaStr = String(dia).padStart(2, '0');
-        const mesStr = String(mes).padStart(2, '0');
-        return `${anoAtual}-${mesStr}-${diaStr}`;
+        return `${anoAtual}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
     }
     return null;
 }
 
-// ---------- LEITURA DA PLANILHA GOOGLE (CORRIGIDA) ----------
+// ---------- LEITURA DA PLANILHA GOOGLE (BUSCA EM TODO O CSV) ----------
 async function carregarPlanilhaGoogle() {
-    if (!PLANILHA_URL) return;
-    if (!dados.dataISO) {
-        console.warn('Data da semana não definida. Carregue o XML primeiro.');
-        return;
-    }
+    if (!PLANILHA_URL || !dados.dataISO) return;
 
     try {
         const response = await fetch(PLANILHA_URL);
@@ -215,74 +181,60 @@ async function carregarPlanilhaGoogle() {
         const linhas = csvText.split(/\r?\n/).filter(l => l.trim() !== '');
         if (linhas.length < 2) return;
 
-        // 1. Extrair datas do cabeçalho
-        const cabecalho = linhas[0].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-        console.log('Cabeçalho do CSV:', cabecalho); // LOG
-
-        const weekDates = [];
-        for (let i = 0; i < cabecalho.length; i++) {
-            const val = cabecalho[i];
-            // Busca qualquer valor que comece com 2026- seguido de dois dígitos
-            if (val && val.match(/^2026-\d{2}-\d{2}$/)) {
-                weekDates.push({ index: i, date: val });
+        // 1. Encontrar a linha que contém a data procurada (2026-08-03)
+        let colunaIndex = -1;
+        let linhaEncontrada = -1;
+        for (let i = 0; i < linhas.length; i++) {
+            const cols = linhas[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+            for (let j = 0; j < cols.length; j++) {
+                if (cols[j] === dados.dataISO) {
+                    colunaIndex = j;
+                    linhaEncontrada = i;
+                    break;
+                }
             }
+            if (colunaIndex !== -1) break;
         }
-        console.log('Datas encontradas:', weekDates.map(w => w.date)); // LOG
 
-        if (weekDates.length === 0) {
-            console.warn('Nenhuma data encontrada no cabeçalho. Verifique o formato (ex: 2026-08-03).');
+        if (colunaIndex === -1) {
+            console.log(`Data ${dados.dataISO} não encontrada no CSV.`);
             return;
         }
 
-        // 2. Percorrer linhas de dados
+        console.log(`Data encontrada na linha ${linhaEncontrada}, coluna ${colunaIndex}`);
+
+        // 2. A partir dessa linha, processar as linhas seguintes como dados
         let dadosCarregados = 0;
-        for (let l = 1; l < linhas.length; l++) {
-            const cols = linhas[l].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+        for (let i = linhaEncontrada + 1; i < linhas.length; i++) {
+            const cols = linhas[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
             const primeiraColuna = cols[0] || '';
 
-            // Pular linhas de correção
-            if (primeiraColuna.match(/^(JH\?ONATH\?AN|CAIO|FAGNER|GUSTAVO|JO\(A|VIT\(O|LUCAS|IRINEU|LU\[IÍ\]S|TALES|ADRIANO)/i)) {
-                continue;
-            }
-            if (primeiraColuna.includes('NECESSIDADES LOCAIS')) {
-                continue;
-            }
+            // Pular linhas de correção ou cabeçalhos repetidos
+            if (primeiraColuna.match(/^(JH\?ONATH\?AN|CAIO|FAGNER|GUSTAVO|JO\(A|VIT\(O|LUCAS|IRINEU|LU\[IÍ\]S|TALES|ADRIANO)/i)) continue;
+            if (primeiraColuna.includes('NECESSIDADES LOCAIS')) continue;
+            if (primeiraColuna.match(/^\d{4}-\d{2}-\d{2}$/)) break; // encontrou nova data, para
 
-            for (const week of weekDates) {
-                const dateIndex = week.index;
-                // A categoria está na coluna dateIndex, o nome na dateIndex+1
-                const categoriaRaw = cols[dateIndex] || '';
-                const nomeRaw = cols[dateIndex + 1] || '';
+            const categoriaRaw = cols[colunaIndex] || '';
+            const nomeRaw = cols[colunaIndex + 1] || '';
+            if (!categoriaRaw || !nomeRaw) continue;
 
-                if (!categoriaRaw) continue;
-                const categoriaInterna = MAP_CATEGORIA[categoriaRaw];
-                if (!categoriaInterna) continue;
+            const categoriaInterna = MAP_CATEGORIA[categoriaRaw];
+            if (!categoriaInterna) continue;
 
-                if (!nomeRaw) continue;
+            let nomes = [];
+            if (nomeRaw.includes(' - ')) nomes = nomeRaw.split(' - ').map(n => n.trim());
+            else if (nomeRaw.includes('-')) nomes = nomeRaw.split('-').map(n => n.trim());
+            else if (nomeRaw.includes('/')) nomes = nomeRaw.split('/').map(n => n.trim());
+            else nomes = [nomeRaw];
 
-                // Dividir nomes
-                let nomes = [];
-                if (nomeRaw.includes(' - ')) {
-                    nomes = nomeRaw.split(' - ').map(n => n.trim());
-                } else if (nomeRaw.includes('-')) {
-                    nomes = nomeRaw.split('-').map(n => n.trim());
-                } else if (nomeRaw.includes('/')) {
-                    nomes = nomeRaw.split('/').map(n => n.trim());
-                } else {
-                    nomes = [nomeRaw];
+            if (!categorias[categoriaInterna]) categorias[categoriaInterna] = [];
+            nomes.forEach(nome => {
+                const n = normalizarNome(nome);
+                if (n && !categorias[categoriaInterna].includes(n)) {
+                    categorias[categoriaInterna].push(n);
+                    dadosCarregados++;
                 }
-
-                if (!categorias[categoriaInterna]) {
-                    categorias[categoriaInterna] = [];
-                }
-                nomes.forEach(nome => {
-                    const nomeNormalizado = normalizarNome(nome);
-                    if (nomeNormalizado && !categorias[categoriaInterna].includes(nomeNormalizado)) {
-                        categorias[categoriaInterna].push(nomeNormalizado);
-                        dadosCarregados++;
-                    }
-                });
-            }
+            });
         }
 
         if (dadosCarregados > 0) {
@@ -297,7 +249,7 @@ async function carregarPlanilhaGoogle() {
     }
 }
 
-// ---------- PREENCHER OS INPUTS ----------
+// ---------- PREENCHER INPUTS ----------
 function preencherTodosInputs() {
     const fixos = [
         { id: 'presidente', categoria: 'PRESIDÊNCIA' },
@@ -319,9 +271,7 @@ function preencherTodosInputs() {
         if (!input) return;
         if (input.value === '') {
             const nomes = categorias[f.categoria] || [];
-            if (nomes.length > 0) {
-                input.value = nomes[0];
-            }
+            if (nomes.length > 0) input.value = nomes[0];
         }
     });
 
@@ -336,103 +286,89 @@ function preencherPartesInputs() {
     if (containerM) containerM.innerHTML = '';
     if (containerV) containerV.innerHTML = '';
 
-    // ---- TESOUROS ----
+    // TESOUROS
     if (containerT && dados.tesouros.length > 0) {
         let html = '<h3>TESOUROS</h3>';
         dados.tesouros.forEach((t, i) => {
             const nomes = categorias['TESOUROS'] || [];
-            const nomePrincipal = nomes.length > 0 ? nomes[0] : '';
-            const nomeAjudante = nomes.length > 1 ? nomes[1] : '';
             html += `<div class="form-item"><label>${i+1}. ${t}</label>`;
             html += `<div style="flex:1; display:flex; gap:4px;">`;
-            html += `<input type="text" id="t${i}_1" value="${nomePrincipal}" placeholder="Principal" style="flex:1;">`;
-            html += `<input type="text" id="t${i}_2" value="${nomeAjudante}" placeholder="Ajudante" style="flex:1;">`;
+            html += `<input type="text" id="t${i}_1" value="${nomes[0] || ''}" placeholder="Principal" style="flex:1;">`;
+            html += `<input type="text" id="t${i}_2" value="${nomes[1] || ''}" placeholder="Ajudante" style="flex:1;">`;
             html += `</div></div>`;
         });
         containerT.innerHTML = html;
     }
 
-    // ---- JOIAS ----
+    // JOIAS
     if (containerT && dados.joias.length > 0) {
         dados.joias.forEach((t, i) => {
             const nomes = categorias['JOIAS'] || [];
-            const nomePrincipal = nomes.length > 0 ? nomes[0] : '';
-            const nomeAjudante = nomes.length > 1 ? nomes[1] : '';
             const div = document.createElement('div');
             div.className = 'form-item';
-            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><input type="text" id="j${i}_1" value="${nomePrincipal}" placeholder="Principal" style="flex:1;"><input type="text" id="j${i}_2" value="${nomeAjudante}" placeholder="Ajudante" style="flex:1;"></div>`;
+            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><input type="text" id="j${i}_1" value="${nomes[0] || ''}" placeholder="Principal" style="flex:1;"><input type="text" id="j${i}_2" value="${nomes[1] || ''}" placeholder="Ajudante" style="flex:1;"></div>`;
             containerT.appendChild(div);
         });
     }
 
-    // ---- LEITURA DA BÍBLIA ----
+    // LEITURA
     if (containerT && dados.leitura.length > 0) {
         dados.leitura.forEach((t, i) => {
             const nomes = categorias['LEITURA DA BÍBLIA'] || [];
-            const nomePrincipal = nomes.length > 0 ? nomes[0] : '';
-            const nomeAjudante = nomes.length > 1 ? nomes[1] : '';
             const div = document.createElement('div');
             div.className = 'form-item';
-            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><input type="text" id="l${i}_1" value="${nomePrincipal}" placeholder="Principal" style="flex:1;"><input type="text" id="l${i}_2" value="${nomeAjudante}" placeholder="Ajudante" style="flex:1;"></div>`;
+            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><input type="text" id="l${i}_1" value="${nomes[0] || ''}" placeholder="Principal" style="flex:1;"><input type="text" id="l${i}_2" value="${nomes[1] || ''}" placeholder="Ajudante" style="flex:1;"></div>`;
             containerT.appendChild(div);
         });
     }
 
-    // ---- MINISTÉRIO ----
+    // MINISTÉRIO
     if (containerM && dados.ministerio.length > 0) {
         let html = '<h3>MINISTÉRIO</h3>';
         dados.ministerio.forEach((t, i) => {
             const nomes = categorias['PARTES'] || [];
-            const nomePrincipal = nomes.length > 0 ? nomes[0] : '';
-            const nomeAjudante = nomes.length > 1 ? nomes[1] : '';
             html += `<div class="form-item"><label>${i+4}. ${t}</label>`;
             html += `<div style="flex:1; display:flex; gap:4px;">`;
-            html += `<input type="text" id="m${i}_1" value="${nomePrincipal}" placeholder="Principal" style="flex:1;">`;
-            html += `<input type="text" id="m${i}_2" value="${nomeAjudante}" placeholder="Ajudante" style="flex:1;">`;
+            html += `<input type="text" id="m${i}_1" value="${nomes[0] || ''}" placeholder="Principal" style="flex:1;">`;
+            html += `<input type="text" id="m${i}_2" value="${nomes[1] || ''}" placeholder="Ajudante" style="flex:1;">`;
             html += `</div></div>`;
         });
         containerM.innerHTML = html;
     }
 
-    // ---- DISCURSO ----
+    // DISCURSO
     if (containerM && dados.discurso.length > 0) {
         dados.discurso.forEach((t, i) => {
             const nomes = categorias['DISCURSO'] || [];
-            const nomePrincipal = nomes.length > 0 ? nomes[0] : '';
-            const nomeAjudante = nomes.length > 1 ? nomes[1] : '';
             const div = document.createElement('div');
             div.className = 'form-item';
-            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><input type="text" id="d${i}_1" value="${nomePrincipal}" placeholder="Principal" style="flex:1;"><input type="text" id="d${i}_2" value="${nomeAjudante}" placeholder="Ajudante" style="flex:1;"></div>`;
+            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><input type="text" id="d${i}_1" value="${nomes[0] || ''}" placeholder="Principal" style="flex:1;"><input type="text" id="d${i}_2" value="${nomes[1] || ''}" placeholder="Ajudante" style="flex:1;"></div>`;
             containerM.appendChild(div);
         });
     }
 
-    // ---- VIDA CRISTÃ ----
+    // VIDA CRISTÃ
     if (containerV && dados.vida.length > 0) {
         const numVida = 4 + dados.ministerio.length + dados.discurso.length;
         let html = '<h3>VIDA CRISTÃ</h3>';
         dados.vida.forEach((t, i) => {
             const nomes = categorias['VIDA CRISTÃ'] || [];
-            const nomePrincipal = nomes.length > 0 ? nomes[0] : '';
-            const nomeAjudante = nomes.length > 1 ? nomes[1] : '';
             html += `<div class="form-item"><label>${numVida+i}. ${t}</label>`;
             html += `<div style="flex:1; display:flex; gap:4px;">`;
-            html += `<input type="text" id="v${i}_1" value="${nomePrincipal}" placeholder="Principal" style="flex:1;">`;
-            html += `<input type="text" id="v${i}_2" value="${nomeAjudante}" placeholder="Ajudante" style="flex:1;">`;
+            html += `<input type="text" id="v${i}_1" value="${nomes[0] || ''}" placeholder="Principal" style="flex:1;">`;
+            html += `<input type="text" id="v${i}_2" value="${nomes[1] || ''}" placeholder="Ajudante" style="flex:1;">`;
             html += `</div></div>`;
         });
         containerV.innerHTML = html;
     }
 
-    // ---- EBC ----
+    // EBC
     if (containerV && dados.ebc.length > 0) {
         dados.ebc.forEach((t, i) => {
             const nomes = categorias['EBC'] || [];
-            const nomePrincipal = nomes.length > 0 ? nomes[0] : '';
-            const nomeAjudante = nomes.length > 1 ? nomes[1] : '';
             const div = document.createElement('div');
             div.className = 'form-item';
-            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><input type="text" id="e${i}_1" value="${nomePrincipal}" placeholder="Principal" style="flex:1;"><input type="text" id="e${i}_2" value="${nomeAjudante}" placeholder="Ajudante" style="flex:1;"></div>`;
+            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><input type="text" id="e${i}_1" value="${nomes[0] || ''}" placeholder="Principal" style="flex:1;"><input type="text" id="e${i}_2" value="${nomes[1] || ''}" placeholder="Ajudante" style="flex:1;"></div>`;
             containerV.appendChild(div);
         });
     }
