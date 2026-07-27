@@ -14,9 +14,6 @@ let dados = {
     ebc: []
 };
 
-// ---------- ESTRUTURA DE CATEGORIAS E NOMES ----------
-let categorias = {};
-
 // ---------- CONFIGURAÇÃO DA PLANILHA GOOGLE ----------
 const PLANILHA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSpLm4xRT2db5VNlHfQppidLW9hLkve9UuvoQS4bILrqFn0guIcv_du8PWjpTT1Ag7UQ3RN_AnrFIKQ/pub?output=csv';
 
@@ -39,8 +36,12 @@ const MAP_CATEGORIA = {
 
 // ---------- INICIALIZAÇÃO ----------
 document.addEventListener('DOMContentLoaded', function() {
-    carregarCategoriasLocal();   // fallback
-    // A planilha só será carregada depois que o XML for carregado (pois precisa da data)
+    // Carrega os nomes salvos localmente (fallback)
+    carregarDadosLocal();
+    // Se já houver um XML carregado (ex: recarregou a página), tenta puxar da planilha
+    if (dados.dataISO) {
+        carregarPlanilhaGoogle();
+    }
 });
 
 // ---------- FUNÇÕES GLOBAIS ----------
@@ -122,12 +123,24 @@ window.voltarEdicao = function() {
 
 // ---------- FUNÇÕES INTERNAS ----------
 
-// Carrega as categorias do localStorage (fallback)
-function carregarCategoriasLocal() {
-    const stored = localStorage.getItem('categoriasIrmãos');
+// Salva e carrega os dados localmente (fallback)
+function salvarDadosLocal() {
+    const dataToSave = {
+        categorias: categorias,
+        dados: dados
+    };
+    localStorage.setItem('designacoesData', JSON.stringify(dataToSave));
+}
+
+function carregarDadosLocal() {
+    const stored = localStorage.getItem('designacoesData');
     if (stored) {
-        categorias = JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        categorias = parsed.categorias || {};
+        dados = parsed.dados || dados;
+        preencherTodosInputs();
     } else {
+        // Inicializa categorias vazias
         categorias = {
             "ORAÇÕES": [],
             "PRESIDÊNCIA": [],
@@ -146,13 +159,8 @@ function carregarCategoriasLocal() {
             "Mídia": [],
             "Palco": []
         };
-        salvarCategoriasLocal();
+        salvarDadosLocal();
     }
-    preencherTodosSelects();
-}
-
-function salvarCategoriasLocal() {
-    localStorage.setItem('categoriasIrmãos', JSON.stringify(categorias));
 }
 
 // Normalização de nomes
@@ -196,10 +204,9 @@ function converterDataParaISO(dataTexto) {
     return null;
 }
 
-// ---------- LEITURA DA PLANILHA GOOGLE COM FILTRO (CORRIGIDA) ----------
+// ---------- LEITURA DA PLANILHA GOOGLE (CORRIGIDA) ----------
 async function carregarPlanilhaGoogle() {
     if (!PLANILHA_URL) return;
-
     if (!dados.dataISO) {
         console.warn('Data da semana não definida. Carregue o XML primeiro.');
         return;
@@ -211,7 +218,7 @@ async function carregarPlanilhaGoogle() {
         const linhas = csvText.split(/\r?\n/).filter(l => l.trim() !== '');
         if (linhas.length < 2) return;
 
-        // 1. Ler o cabeçalho e extrair as datas das semanas
+        // 1. Extrair as datas do cabeçalho (qualquer coluna que pareça YYYY-MM-DD)
         const cabecalho = linhas[0].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
         const weekDates = [];
         for (let i = 0; i < cabecalho.length; i++) {
@@ -221,14 +228,12 @@ async function carregarPlanilhaGoogle() {
             }
         }
         if (weekDates.length === 0) {
-            console.warn('Nenhuma data encontrada no cabeçalho.');
+            console.warn('Nenhuma data encontrada no cabeçalho. Verifique se o CSV está correto.');
             return;
         }
 
-        const numWeeks = weekDates.length;
+        // 2. Para cada linha de dados, extrair categoria e nome para cada semana
         let dadosCarregados = 0;
-
-        // 2. Percorrer as linhas de dados
         for (let l = 1; l < linhas.length; l++) {
             const cols = linhas[l].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
             const primeiraColuna = cols[0] || '';
@@ -241,18 +246,20 @@ async function carregarPlanilhaGoogle() {
                 continue;
             }
 
-            // 3. Para cada semana, extrair categoria e nome da coluna correspondente
-            for (let w = 0; w < numWeeks; w++) {
-                const weekDate = weekDates[w].date;
-                if (weekDate !== dados.dataISO) continue;
+            // Para cada semana, tentar extrair categoria e nome
+            for (const week of weekDates) {
+                const dateIndex = week.index;
+                // A categoria está na coluna dateIndex, o nome na dateIndex+1
+                const categoriaRaw = cols[dateIndex] || '';
+                const nomeRaw = cols[dateIndex + 1] || '';
 
-                const categoryRaw = cols[w * 3] || '';
-                const nomeRaw = cols[w * 3 + 1] || '';
-
-                if (!categoryRaw || !nomeRaw) continue;
-
-                const categoriaInterna = MAP_CATEGORIA[categoryRaw];
+                // Se a categoria não for uma das mapeadas, pula
+                if (!categoriaRaw) continue;
+                const categoriaInterna = MAP_CATEGORIA[categoriaRaw];
                 if (!categoriaInterna) continue;
+
+                // Se não houver nome, pula
+                if (!nomeRaw) continue;
 
                 // Dividir nomes por separadores
                 let nomes = [];
@@ -266,6 +273,7 @@ async function carregarPlanilhaGoogle() {
                     nomes = [nomeRaw];
                 }
 
+                // Adicionar à categoria
                 if (!categorias[categoriaInterna]) {
                     categorias[categoriaInterna] = [];
                 }
@@ -280,45 +288,52 @@ async function carregarPlanilhaGoogle() {
         }
 
         if (dadosCarregados > 0) {
-            localStorage.setItem('categoriasIrmãos', JSON.stringify(categorias));
-            preencherTodosSelects();
+            salvarDadosLocal();
+            preencherTodosInputs();
             console.log(`${dadosCarregados} nomes carregados para a semana ${dados.dataISO}.`);
         } else {
             console.log(`Nenhum nome encontrado para a semana ${dados.dataISO}.`);
-            console.log('Verifique se a data no CSV está no formato YYYY-MM-DD e se a coluna da categoria e nome estão alinhadas.');
         }
     } catch (e) {
         console.warn('Erro ao carregar a planilha:', e);
     }
 }
 
-// ---------- POPULAR OS SELECTS ----------
-function preencherTodosSelects() {
-    document.querySelectorAll('.form-item[data-categoria]').forEach(item => {
-        const select = item.querySelector('select');
-        if (!select) return;
-        const categoria = item.dataset.categoria;
-        const current = select.value;
-        select.innerHTML = '';
-        const opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = '(Selecione)';
-        select.appendChild(opt);
-        if (categorias[categoria]) {
-            categorias[categoria].forEach(nome => {
-                const opt2 = document.createElement('option');
-                opt2.value = nome;
-                opt2.textContent = nome;
-                if (nome === current) opt2.selected = true;
-                select.appendChild(opt2);
-            });
+// ---------- PREENCHER OS INPUTS (texto) ----------
+function preencherTodosInputs() {
+    // Preenche inputs fixos (Presidente, Oração Inicial, Leitor, Oração Final)
+    const fixos = [
+        { id: 'presidente', categoria: 'PRESIDÊNCIA' },
+        { id: 'oracaoInicial', categoria: 'ORAÇÕES' },
+        { id: 'leitor', categoria: 'LEITOR' },
+        { id: 'oracaoFinal', categoria: 'ORAÇÕES' },
+        { id: 'indEntrada', categoria: 'Indicador Entrada' },
+        { id: 'indAuditorio', categoria: 'Indicador Auditório' },
+        { id: 'indZoom', categoria: 'Indicador Zoom' },
+        { id: 'midias', categoria: 'Mídia' },
+        { id: 'audio', categoria: 'Mídia' },
+        { id: 'mic1', categoria: 'Microfone' },
+        { id: 'mic2', categoria: 'Microfone' },
+        { id: 'palco', categoria: 'Palco' }
+    ];
+
+    fixos.forEach(f => {
+        const input = document.getElementById(f.id);
+        if (!input) return;
+        // Se já houver um valor manual, mantém; senão preenche com o primeiro nome da categoria
+        if (input.value === '') {
+            const nomes = categorias[f.categoria] || [];
+            if (nomes.length > 0) {
+                input.value = nomes[0];
+            }
         }
     });
 
-    preencherPartesSelects();
+    // Preenche inputs dinâmicos (Tesouros, Ministério, Vida)
+    preencherPartesInputs();
 }
 
-function preencherPartesSelects() {
+function preencherPartesInputs() {
     const containerT = document.getElementById('tesourosForm');
     const containerM = document.getElementById('ministerioForm');
     const containerV = document.getElementById('vidaForm');
@@ -327,202 +342,104 @@ function preencherPartesSelects() {
     if (containerV) containerV.innerHTML = '';
 
     // ---- TESOUROS ----
-    if (containerT) {
-        if (dados.tesouros.length > 0) {
-            let html = '<h3>TESOUROS</h3>';
-            dados.tesouros.forEach((t, i) => {
-                html += `<div class="form-item"><label>${i+1}. ${t}</label>`;
-                html += `<div style="flex:1; display:flex; gap:4px;">`;
-                html += `<select id="t${i}_1" data-categoria="TESOUROS" style="flex:1;"><option value="">Principal</option></select>`;
-                html += `<select id="t${i}_2" data-categoria="TESOUROS" style="flex:1;"><option value="">Ajudante</option></select>`;
-                html += `</div></div>`;
-            });
-            containerT.innerHTML = html;
-            containerT.querySelectorAll('select[data-categoria]').forEach(sel => {
-                const cat = sel.dataset.categoria;
-                const current = sel.value;
-                sel.innerHTML = '';
-                const opt = document.createElement('option');
-                opt.value = '';
-                opt.textContent = '(Selecione)';
-                sel.appendChild(opt);
-                if (categorias[cat]) {
-                    categorias[cat].forEach(nome => {
-                        const opt2 = document.createElement('option');
-                        opt2.value = nome;
-                        opt2.textContent = nome;
-                        if (nome === current) opt2.selected = true;
-                        sel.appendChild(opt2);
-                    });
-                }
-            });
-        }
-
-        dados.joias.forEach((t, i) => {
-            const div = document.createElement('div');
-            div.className = 'form-item';
-            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><select id="j${i}_1" data-categoria="JOIAS" style="flex:1;"><option value="">Principal</option></select><select id="j${i}_2" data-categoria="JOIAS" style="flex:1;"><option value="">Ajudante</option></select></div>`;
-            containerT.appendChild(div);
-            div.querySelectorAll('select').forEach(sel => {
-                const cat = sel.dataset.categoria;
-                const current = sel.value;
-                sel.innerHTML = '';
-                const opt = document.createElement('option');
-                opt.value = '';
-                opt.textContent = '(Selecione)';
-                sel.appendChild(opt);
-                if (categorias[cat]) {
-                    categorias[cat].forEach(nome => {
-                        const opt2 = document.createElement('option');
-                        opt2.value = nome;
-                        opt2.textContent = nome;
-                        if (nome === current) opt2.selected = true;
-                        sel.appendChild(opt2);
-                    });
-                }
-            });
+    if (containerT && dados.tesouros.length > 0) {
+        let html = '<h3>TESOUROS</h3>';
+        dados.tesouros.forEach((t, i) => {
+            // Pega o nome da categoria TESOUROS (se houver)
+            const nomes = categorias['TESOUROS'] || [];
+            const nomePrincipal = nomes.length > 0 ? nomes[0] : '';
+            const nomeAjudante = nomes.length > 1 ? nomes[1] : '';
+            html += `<div class="form-item"><label>${i+1}. ${t}</label>`;
+            html += `<div style="flex:1; display:flex; gap:4px;">`;
+            html += `<input type="text" id="t${i}_1" value="${nomePrincipal}" placeholder="Principal" style="flex:1;">`;
+            html += `<input type="text" id="t${i}_2" value="${nomeAjudante}" placeholder="Ajudante" style="flex:1;">`;
+            html += `</div></div>`;
         });
+        containerT.innerHTML = html;
+    }
 
-        dados.leitura.forEach((t, i) => {
+    // ---- JOIAS ----
+    if (containerT && dados.joias.length > 0) {
+        dados.joias.forEach((t, i) => {
+            const nomes = categorias['JOIAS'] || [];
+            const nomePrincipal = nomes.length > 0 ? nomes[0] : '';
+            const nomeAjudante = nomes.length > 1 ? nomes[1] : '';
             const div = document.createElement('div');
             div.className = 'form-item';
-            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><select id="l${i}_1" data-categoria="LEITURA DA BÍBLIA" style="flex:1;"><option value="">Principal</option></select><select id="l${i}_2" data-categoria="LEITURA DA BÍBLIA" style="flex:1;"><option value="">Ajudante</option></select></div>`;
+            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><input type="text" id="j${i}_1" value="${nomePrincipal}" placeholder="Principal" style="flex:1;"><input type="text" id="j${i}_2" value="${nomeAjudante}" placeholder="Ajudante" style="flex:1;"></div>`;
             containerT.appendChild(div);
-            div.querySelectorAll('select').forEach(sel => {
-                const cat = sel.dataset.categoria;
-                const current = sel.value;
-                sel.innerHTML = '';
-                const opt = document.createElement('option');
-                opt.value = '';
-                opt.textContent = '(Selecione)';
-                sel.appendChild(opt);
-                if (categorias[cat]) {
-                    categorias[cat].forEach(nome => {
-                        const opt2 = document.createElement('option');
-                        opt2.value = nome;
-                        opt2.textContent = nome;
-                        if (nome === current) opt2.selected = true;
-                        sel.appendChild(opt2);
-                    });
-                }
-            });
+        });
+    }
+
+    // ---- LEITURA DA BÍBLIA ----
+    if (containerT && dados.leitura.length > 0) {
+        dados.leitura.forEach((t, i) => {
+            const nomes = categorias['LEITURA DA BÍBLIA'] || [];
+            const nomePrincipal = nomes.length > 0 ? nomes[0] : '';
+            const nomeAjudante = nomes.length > 1 ? nomes[1] : '';
+            const div = document.createElement('div');
+            div.className = 'form-item';
+            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><input type="text" id="l${i}_1" value="${nomePrincipal}" placeholder="Principal" style="flex:1;"><input type="text" id="l${i}_2" value="${nomeAjudante}" placeholder="Ajudante" style="flex:1;"></div>`;
+            containerT.appendChild(div);
         });
     }
 
     // ---- MINISTÉRIO ----
-    if (containerM) {
-        if (dados.ministerio.length > 0) {
-            let html = '<h3>MINISTÉRIO</h3>';
-            dados.ministerio.forEach((t, i) => {
-                html += `<div class="form-item"><label>${i+4}. ${t}</label>`;
-                html += `<div style="flex:1; display:flex; gap:4px;">`;
-                html += `<select id="m${i}_1" data-categoria="PARTES" style="flex:1;"><option value="">Principal</option></select>`;
-                html += `<select id="m${i}_2" data-categoria="PARTES" style="flex:1;"><option value="">Ajudante</option></select>`;
-                html += `</div></div>`;
-            });
-            containerM.innerHTML = html;
-            containerM.querySelectorAll('select[data-categoria]').forEach(sel => {
-                const cat = sel.dataset.categoria;
-                const current = sel.value;
-                sel.innerHTML = '';
-                const opt = document.createElement('option');
-                opt.value = '';
-                opt.textContent = '(Selecione)';
-                sel.appendChild(opt);
-                if (categorias[cat]) {
-                    categorias[cat].forEach(nome => {
-                        const opt2 = document.createElement('option');
-                        opt2.value = nome;
-                        opt2.textContent = nome;
-                        if (nome === current) opt2.selected = true;
-                        sel.appendChild(opt2);
-                    });
-                }
-            });
-        }
+    if (containerM && dados.ministerio.length > 0) {
+        let html = '<h3>MINISTÉRIO</h3>';
+        dados.ministerio.forEach((t, i) => {
+            const nomes = categorias['PARTES'] || [];
+            const nomePrincipal = nomes.length > 0 ? nomes[0] : '';
+            const nomeAjudante = nomes.length > 1 ? nomes[1] : '';
+            html += `<div class="form-item"><label>${i+4}. ${t}</label>`;
+            html += `<div style="flex:1; display:flex; gap:4px;">`;
+            html += `<input type="text" id="m${i}_1" value="${nomePrincipal}" placeholder="Principal" style="flex:1;">`;
+            html += `<input type="text" id="m${i}_2" value="${nomeAjudante}" placeholder="Ajudante" style="flex:1;">`;
+            html += `</div></div>`;
+        });
+        containerM.innerHTML = html;
+    }
 
+    // ---- DISCURSO ----
+    if (containerM && dados.discurso.length > 0) {
         dados.discurso.forEach((t, i) => {
+            const nomes = categorias['DISCURSO'] || [];
+            const nomePrincipal = nomes.length > 0 ? nomes[0] : '';
+            const nomeAjudante = nomes.length > 1 ? nomes[1] : '';
             const div = document.createElement('div');
             div.className = 'form-item';
-            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><select id="d${i}_1" data-categoria="DISCURSO" style="flex:1;"><option value="">Principal</option></select><select id="d${i}_2" data-categoria="DISCURSO" style="flex:1;"><option value="">Ajudante</option></select></div>`;
+            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><input type="text" id="d${i}_1" value="${nomePrincipal}" placeholder="Principal" style="flex:1;"><input type="text" id="d${i}_2" value="${nomeAjudante}" placeholder="Ajudante" style="flex:1;"></div>`;
             containerM.appendChild(div);
-            div.querySelectorAll('select').forEach(sel => {
-                const cat = sel.dataset.categoria;
-                const current = sel.value;
-                sel.innerHTML = '';
-                const opt = document.createElement('option');
-                opt.value = '';
-                opt.textContent = '(Selecione)';
-                sel.appendChild(opt);
-                if (categorias[cat]) {
-                    categorias[cat].forEach(nome => {
-                        const opt2 = document.createElement('option');
-                        opt2.value = nome;
-                        opt2.textContent = nome;
-                        if (nome === current) opt2.selected = true;
-                        sel.appendChild(opt2);
-                    });
-                }
-            });
         });
     }
 
     // ---- VIDA CRISTÃ ----
-    if (containerV) {
+    if (containerV && dados.vida.length > 0) {
         const numVida = 4 + dados.ministerio.length + dados.discurso.length;
-        if (dados.vida.length > 0) {
-            let html = '<h3>VIDA CRISTÃ</h3>';
-            dados.vida.forEach((t, i) => {
-                html += `<div class="form-item"><label>${numVida+i}. ${t}</label>`;
-                html += `<div style="flex:1; display:flex; gap:4px;">`;
-                html += `<select id="v${i}_1" data-categoria="VIDA CRISTÃ" style="flex:1;"><option value="">Principal</option></select>`;
-                html += `<select id="v${i}_2" data-categoria="VIDA CRISTÃ" style="flex:1;"><option value="">Ajudante</option></select>`;
-                html += `</div></div>`;
-            });
-            containerV.innerHTML = html;
-            containerV.querySelectorAll('select[data-categoria]').forEach(sel => {
-                const cat = sel.dataset.categoria;
-                const current = sel.value;
-                sel.innerHTML = '';
-                const opt = document.createElement('option');
-                opt.value = '';
-                opt.textContent = '(Selecione)';
-                sel.appendChild(opt);
-                if (categorias[cat]) {
-                    categorias[cat].forEach(nome => {
-                        const opt2 = document.createElement('option');
-                        opt2.value = nome;
-                        opt2.textContent = nome;
-                        if (nome === current) opt2.selected = true;
-                        sel.appendChild(opt2);
-                    });
-                }
-            });
-        }
+        let html = '<h3>VIDA CRISTÃ</h3>';
+        dados.vida.forEach((t, i) => {
+            const nomes = categorias['VIDA CRISTÃ'] || [];
+            const nomePrincipal = nomes.length > 0 ? nomes[0] : '';
+            const nomeAjudante = nomes.length > 1 ? nomes[1] : '';
+            html += `<div class="form-item"><label>${numVida+i}. ${t}</label>`;
+            html += `<div style="flex:1; display:flex; gap:4px;">`;
+            html += `<input type="text" id="v${i}_1" value="${nomePrincipal}" placeholder="Principal" style="flex:1;">`;
+            html += `<input type="text" id="v${i}_2" value="${nomeAjudante}" placeholder="Ajudante" style="flex:1;">`;
+            html += `</div></div>`;
+        });
+        containerV.innerHTML = html;
+    }
 
+    // ---- EBC ----
+    if (containerV && dados.ebc.length > 0) {
         dados.ebc.forEach((t, i) => {
+            const nomes = categorias['EBC'] || [];
+            const nomePrincipal = nomes.length > 0 ? nomes[0] : '';
+            const nomeAjudante = nomes.length > 1 ? nomes[1] : '';
             const div = document.createElement('div');
             div.className = 'form-item';
-            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><select id="e${i}_1" data-categoria="EBC" style="flex:1;"><option value="">Principal</option></select><select id="e${i}_2" data-categoria="EBC" style="flex:1;"><option value="">Ajudante</option></select></div>`;
+            div.innerHTML = `<label>${t}</label><div style="flex:1; display:flex; gap:4px;"><input type="text" id="e${i}_1" value="${nomePrincipal}" placeholder="Principal" style="flex:1;"><input type="text" id="e${i}_2" value="${nomeAjudante}" placeholder="Ajudante" style="flex:1;"></div>`;
             containerV.appendChild(div);
-            div.querySelectorAll('select').forEach(sel => {
-                const cat = sel.dataset.categoria;
-                const current = sel.value;
-                sel.innerHTML = '';
-                const opt = document.createElement('option');
-                opt.value = '';
-                opt.textContent = '(Selecione)';
-                sel.appendChild(opt);
-                if (categorias[cat]) {
-                    categorias[cat].forEach(nome => {
-                        const opt2 = document.createElement('option');
-                        opt2.value = nome;
-                        opt2.textContent = nome;
-                        if (nome === current) opt2.selected = true;
-                        sel.appendChild(opt2);
-                    });
-                }
-            });
         });
     }
 }
@@ -541,7 +458,6 @@ document.getElementById('fileInput').addEventListener('change', async function(e
     dados.dataISO = converterDataParaISO(dados.data);
     if (dados.dataISO) {
         console.log('Data da semana convertida para ISO:', dados.dataISO);
-        // Agora carrega a planilha com o filtro
         carregarPlanilhaGoogle();
     } else {
         console.warn('Não foi possível converter a data do XML para ISO.');
@@ -585,7 +501,7 @@ document.getElementById('fileInput').addEventListener('change', async function(e
         dados.cantoFinal = allSongs[allSongs.length-1];
     }
 
-    preencherTodosSelects();
+    preencherTodosInputs();
     document.getElementById('cantoFinalNum').value = dados.cantoFinal;
 
     const citacaoArea = document.getElementById('citacao');
