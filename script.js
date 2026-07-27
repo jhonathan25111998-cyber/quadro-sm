@@ -36,9 +36,7 @@ const MAP_CATEGORIA = {
 
 // ---------- INICIALIZAÇÃO ----------
 document.addEventListener('DOMContentLoaded', function() {
-    // Carrega os nomes salvos localmente (fallback)
     carregarDadosLocal();
-    // Se já houver um XML carregado (ex: recarregou a página), tenta puxar da planilha
     if (dados.dataISO) {
         carregarPlanilhaGoogle();
     }
@@ -140,7 +138,6 @@ function carregarDadosLocal() {
         dados = parsed.dados || dados;
         preencherTodosInputs();
     } else {
-        // Inicializa categorias vazias
         categorias = {
             "ORAÇÕES": [],
             "PRESIDÊNCIA": [],
@@ -218,27 +215,32 @@ async function carregarPlanilhaGoogle() {
         const linhas = csvText.split(/\r?\n/).filter(l => l.trim() !== '');
         if (linhas.length < 2) return;
 
-        // 1. Extrair as datas do cabeçalho (qualquer coluna que pareça YYYY-MM-DD)
+        // 1. Extrair datas do cabeçalho
         const cabecalho = linhas[0].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+        console.log('Cabeçalho do CSV:', cabecalho); // LOG
+
         const weekDates = [];
         for (let i = 0; i < cabecalho.length; i++) {
             const val = cabecalho[i];
-            if (val && val.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            // Busca qualquer valor que comece com 2026- seguido de dois dígitos
+            if (val && val.match(/^2026-\d{2}-\d{2}$/)) {
                 weekDates.push({ index: i, date: val });
             }
         }
+        console.log('Datas encontradas:', weekDates.map(w => w.date)); // LOG
+
         if (weekDates.length === 0) {
-            console.warn('Nenhuma data encontrada no cabeçalho. Verifique se o CSV está correto.');
+            console.warn('Nenhuma data encontrada no cabeçalho. Verifique o formato (ex: 2026-08-03).');
             return;
         }
 
-        // 2. Para cada linha de dados, extrair categoria e nome para cada semana
+        // 2. Percorrer linhas de dados
         let dadosCarregados = 0;
         for (let l = 1; l < linhas.length; l++) {
             const cols = linhas[l].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
             const primeiraColuna = cols[0] || '';
 
-            // Pular linhas de correção ou notas
+            // Pular linhas de correção
             if (primeiraColuna.match(/^(JH\?ONATH\?AN|CAIO|FAGNER|GUSTAVO|JO\(A|VIT\(O|LUCAS|IRINEU|LU\[IÍ\]S|TALES|ADRIANO)/i)) {
                 continue;
             }
@@ -246,22 +248,19 @@ async function carregarPlanilhaGoogle() {
                 continue;
             }
 
-            // Para cada semana, tentar extrair categoria e nome
             for (const week of weekDates) {
                 const dateIndex = week.index;
                 // A categoria está na coluna dateIndex, o nome na dateIndex+1
                 const categoriaRaw = cols[dateIndex] || '';
                 const nomeRaw = cols[dateIndex + 1] || '';
 
-                // Se a categoria não for uma das mapeadas, pula
                 if (!categoriaRaw) continue;
                 const categoriaInterna = MAP_CATEGORIA[categoriaRaw];
                 if (!categoriaInterna) continue;
 
-                // Se não houver nome, pula
                 if (!nomeRaw) continue;
 
-                // Dividir nomes por separadores
+                // Dividir nomes
                 let nomes = [];
                 if (nomeRaw.includes(' - ')) {
                     nomes = nomeRaw.split(' - ').map(n => n.trim());
@@ -273,7 +272,6 @@ async function carregarPlanilhaGoogle() {
                     nomes = [nomeRaw];
                 }
 
-                // Adicionar à categoria
                 if (!categorias[categoriaInterna]) {
                     categorias[categoriaInterna] = [];
                 }
@@ -299,9 +297,8 @@ async function carregarPlanilhaGoogle() {
     }
 }
 
-// ---------- PREENCHER OS INPUTS (texto) ----------
+// ---------- PREENCHER OS INPUTS ----------
 function preencherTodosInputs() {
-    // Preenche inputs fixos (Presidente, Oração Inicial, Leitor, Oração Final)
     const fixos = [
         { id: 'presidente', categoria: 'PRESIDÊNCIA' },
         { id: 'oracaoInicial', categoria: 'ORAÇÕES' },
@@ -320,7 +317,6 @@ function preencherTodosInputs() {
     fixos.forEach(f => {
         const input = document.getElementById(f.id);
         if (!input) return;
-        // Se já houver um valor manual, mantém; senão preenche com o primeiro nome da categoria
         if (input.value === '') {
             const nomes = categorias[f.categoria] || [];
             if (nomes.length > 0) {
@@ -329,7 +325,6 @@ function preencherTodosInputs() {
         }
     });
 
-    // Preenche inputs dinâmicos (Tesouros, Ministério, Vida)
     preencherPartesInputs();
 }
 
@@ -345,7 +340,6 @@ function preencherPartesInputs() {
     if (containerT && dados.tesouros.length > 0) {
         let html = '<h3>TESOUROS</h3>';
         dados.tesouros.forEach((t, i) => {
-            // Pega o nome da categoria TESOUROS (se houver)
             const nomes = categorias['TESOUROS'] || [];
             const nomePrincipal = nomes.length > 0 ? nomes[0] : '';
             const nomeAjudante = nomes.length > 1 ? nomes[1] : '';
